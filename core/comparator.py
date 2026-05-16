@@ -150,12 +150,19 @@ def parse_rlm_csv(
         else:
             raise ValueError("Leistungsspalte (kW) konnte nicht gefunden werden.")
 
-    # Parse power values (handle German decimals: 1.234,56 → 1234.56)
-    power_raw = df[power_col].astype(str)
-    # Remove thousand separators (dots before comma)
-    power_raw = power_raw.str.replace(".", "", regex=False)
-    # Replace comma decimal separator with dot
-    power_raw = power_raw.str.replace(",", ".", regex=False)
+    # Parse power values — detect decimal notation first
+    power_raw = df[power_col].astype(str).str.strip()
+    sample = power_raw.dropna().head(20)
+    has_comma = sample.str.contains(",").any()
+    has_dot = sample.str.contains(r"\.").any()
+    if has_comma and has_dot:
+        # German thousands format: "1.234,56" → remove dots, swap comma
+        power_raw = power_raw.str.replace(".", "", regex=False)
+        power_raw = power_raw.str.replace(",", ".", regex=False)
+    elif has_comma:
+        # German decimal only: "12,34" → swap comma
+        power_raw = power_raw.str.replace(",", ".", regex=False)
+    # else: international dot decimal "12.34" → no change needed
     power_values = pd.to_numeric(power_raw, errors="coerce")
 
     # Build series
@@ -184,16 +191,28 @@ def align_profiles(
     real: pd.Series,
 ) -> tuple[pd.Series, pd.Series]:
     """
-    Align synthetic and real profiles to a common time axis.
+    Align synthetic and real profiles to a common 15-min time grid.
 
-    Uses an inner join on the DatetimeIndex so only overlapping
-    intervals are compared.
+    Handles duplicate timestamps (e.g. DST fall-back hour) by averaging,
+    then reindexes both series to the overlapping date range and interpolates
+    small gaps (up to 2 consecutive missing intervals).
     """
-    combined = pd.DataFrame({
-        "synthetic": synthetic,
-        "real": real,
-    }).dropna()
+    # Deduplicate (DST fall-back creates duplicate timestamps in German CSVs)
+    synthetic = synthetic.groupby(synthetic.index).mean()
+    real = real.groupby(real.index).mean()
 
+    overlap_start = max(synthetic.index.min(), real.index.min())
+    overlap_end = min(synthetic.index.max(), real.index.max())
+
+    if overlap_start >= overlap_end:
+        return synthetic.iloc[0:0], real.iloc[0:0]
+
+    common_index = pd.date_range(start=overlap_start, end=overlap_end, freq="15min")
+
+    syn_aligned = synthetic.reindex(common_index).interpolate(method="time", limit=2)
+    real_aligned = real.reindex(common_index).interpolate(method="time", limit=2)
+
+    combined = pd.DataFrame({"synthetic": syn_aligned, "real": real_aligned}).dropna()
     return combined["synthetic"], combined["real"]
 
 

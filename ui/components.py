@@ -40,12 +40,13 @@ MACHINE_COLORS = [
 # ---------------------------------------------------------------------------
 
 def render_summary_cards(stats: dict) -> None:
-    """Display key metrics as Streamlit metric cards."""
-    c1, c2, c3, c4 = st.columns(4)
+    """Display key metrics as Streamlit metric cards (2-column, mobile-first)."""
+    c1, c2 = st.columns(2)
     c1.metric("Spitzenlast", f"{stats['peak_kw']:.1f} kW")
     c2.metric("Grundlast", f"{stats['base_kw']:.1f} kW")
+    c3, c4 = st.columns(2)
     c3.metric("Jahresverbrauch", f"{stats['annual_kwh']:,.0f} kWh")
-    c4.metric("Last-Faktor", f"{stats['load_factor']:.1%}")
+    c4.metric("Lastfaktor", f"{stats['load_factor']:.1%}")
 
 
 # ---------------------------------------------------------------------------
@@ -204,15 +205,76 @@ def render_annual_heatmap(
 
 
 # ---------------------------------------------------------------------------
-# Comparison chart (Scenario B)
+# Annual comparison chart (Scenario B)
+# ---------------------------------------------------------------------------
+
+def render_annual_comparison_chart(
+    synthetic: pd.Series,
+    real: pd.Series,
+    title: str = "Jahresvergleich: Synthetisch vs. Real",
+) -> None:
+    """
+    Full-year overlay of synthetic and real load profiles, aggregated to hourly
+    averages for performance. X-axis uses the real DatetimeIndex.
+    """
+    syn_hourly = synthetic.resample("h").mean()
+    real_hourly = real.resample("h").mean()
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=syn_hourly.index,
+        y=syn_hourly.values,
+        name="Synthetisch (Typenschild)",
+        line=dict(color=COLORS["primary"], width=1.5),
+        opacity=0.85,
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=real_hourly.index,
+        y=real_hourly.values,
+        name="Real (Lastgang)",
+        line=dict(color=COLORS["accent"], width=1.5),
+        opacity=0.85,
+    ))
+
+    # Month separator lines
+    if len(real_hourly) > 0:
+        year = real_hourly.index[0].year
+        for month in range(2, 13):
+            try:
+                ts = pd.Timestamp(f"{year}-{month:02d}-01")
+                if real_hourly.index.min() <= ts <= real_hourly.index.max():
+                    fig.add_vline(x=ts.value / 1e6, line_dash="dot", line_color=COLORS["grid"], opacity=0.4)
+            except Exception:
+                pass
+
+    fig.update_layout(
+        title=title,
+        xaxis=dict(title="Datum", tickformat="%b %Y"),
+        yaxis=dict(title="Leistung (kW)"),
+        template="plotly_dark",
+        height=500,
+        legend=dict(orientation="h", y=-0.12),
+        margin=dict(l=60, r=20, t=50, b=70),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(fig, width="stretch")
+
+
+# ---------------------------------------------------------------------------
+# Comparison chart (Scenario B) — 1-week detail view
 # ---------------------------------------------------------------------------
 
 def render_comparison_chart(
     synthetic: pd.Series,
     real: pd.Series,
-    title: str = "Synthetisch vs. Real (Wochenansicht)",
+    title: str = "Wochendetail: Synthetisch vs. Real",
 ) -> None:
-    """Side-by-side overlay of synthetic and real load profiles (one week)."""
+    """Side-by-side overlay of synthetic and real load profiles (one representative week)."""
     week_start = 7 * 96
     week_end = week_start + 7 * 96
 
@@ -222,36 +284,37 @@ def render_comparison_chart(
 
     day_labels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
+    # Use real timestamps for x-axis labels
+    week_syn = synthetic.iloc[week_start:week_end]
+    week_real = real.iloc[week_start:week_end]
+
     fig = go.Figure()
 
     fig.add_trace(go.Scatter(
-        x=list(range(week_end - week_start)),
-        y=synthetic.iloc[week_start:week_end].values,
+        x=week_syn.index,
+        y=week_syn.values,
         name="Synthetisch (Typenschild)",
         line=dict(color=COLORS["primary"], width=2),
     ))
 
     fig.add_trace(go.Scatter(
-        x=list(range(week_end - week_start)),
-        y=real.iloc[week_start:week_end].values,
+        x=week_real.index,
+        y=week_real.values,
         name="Real (Lastgang)",
         line=dict(color=COLORS["accent"], width=2),
     ))
 
-    for d in range(1, 7):
-        fig.add_vline(x=d * 96, line_dash="dot", line_color=COLORS["grid"], opacity=0.5)
-
-    tick_positions = [d * 96 + 48 for d in range(7)]
     fig.update_layout(
         title=title,
-        xaxis=dict(tickmode="array", tickvals=tick_positions, ticktext=day_labels, title="Wochentag"),
+        xaxis=dict(title="Datum / Uhrzeit", tickformat="%a %H:%M"),
         yaxis=dict(title="Leistung (kW)"),
         template="plotly_dark",
-        height=450,
+        height=400,
         legend=dict(orientation="h", y=-0.15),
         margin=dict(l=60, r=20, t=50, b=60),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
+        hovermode="x unified",
     )
 
     st.plotly_chart(fig, width="stretch")

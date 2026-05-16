@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Marvi/Downloads/**)",
+      "Bash(python -c ' *)",
+      "Bash(python -m pip install pandas openpyxl --quiet)"
+    ]
+  }
+}

@@ -41,7 +41,53 @@ VR_ACCENT: str = "#16a34a"
 COMPANY_NAME: str = "VR Energieservice GmbH"
 
 # ---------------------------------------------------------------------------
-# Default sample machines (metalworking demo)
+# Default machines for Scenario B — 4 Daikin VRV heat pumps (Zähler 50254112622)
+# ---------------------------------------------------------------------------
+SAMPLE_MACHINES_WP: list[dict] = [
+    {
+        "name": "WP 1 – Daikin REYQ14PY1B",
+        "rated_power_kw": 11.2,
+        "operating_hours_per_day": 24.0,
+        "days_per_week": 7,
+        "simultaneity_factor": 1.0,
+        "load_factor": 1.0,
+        "start_hour": 0.0,
+        "category": "building_services",
+    },
+    {
+        "name": "WP 2 – Daikin REYQ12PY1B",
+        "rated_power_kw": 9.0,
+        "operating_hours_per_day": 24.0,
+        "days_per_week": 7,
+        "simultaneity_factor": 1.0,
+        "load_factor": 1.0,
+        "start_hour": 0.0,
+        "category": "building_services",
+    },
+    {
+        "name": "WP 3 – Daikin REMQ12P8Y1B",
+        "rated_power_kw": 8.6,
+        "operating_hours_per_day": 24.0,
+        "days_per_week": 7,
+        "simultaneity_factor": 1.0,
+        "load_factor": 1.0,
+        "start_hour": 0.0,
+        "category": "building_services",
+    },
+    {
+        "name": "WP 4 – Daikin REYQ12M8W1BA",
+        "rated_power_kw": 8.8,
+        "operating_hours_per_day": 24.0,
+        "days_per_week": 7,
+        "simultaneity_factor": 1.0,
+        "load_factor": 1.0,
+        "start_hour": 0.0,
+        "category": "building_services",
+    },
+]
+
+
+# Default sample machines (metalworking demo — used in Scenario A)
 # ---------------------------------------------------------------------------
 SAMPLE_MACHINES: list[dict] = [
     {

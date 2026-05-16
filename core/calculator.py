@@ -171,10 +171,6 @@ def generate_synthetic_load_profile(
     end = pd.Timestamp(f"{year}-12-31 23:45:00")
     index = pd.date_range(start=start, end=end, freq="15min")
 
-    # Ensure exactly INTERVALS_PER_YEAR entries (handle leap years by truncation)
-    if len(index) > INTERVALS_PER_YEAR:
-        index = index[:INTERVALS_PER_YEAR]
-
     total = np.zeros(len(index))
     per_machine: dict[str, pd.Series] = {}
 

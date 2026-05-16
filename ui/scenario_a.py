@@ -10,7 +10,7 @@ from __future__ import annotations
 import streamlit as st
 
 from core.calculator import calculate_summary_stats, generate_synthetic_load_profile
-from core.config import SAMPLE_MACHINES
+from core.config import SAMPLE_MACHINES_WP
 from core.models import Machine, MachineCategory, MachineSet
 from core.recommender import recommend_tariff
 from ui.components import (
@@ -29,7 +29,7 @@ from utils.export import export_scenario_a_excel
 def _init_session_state() -> None:
     """Ensure session-state keys exist."""
     if "machines_a" not in st.session_state:
-        st.session_state["machines_a"] = [dict(m) for m in SAMPLE_MACHINES]
+        st.session_state["machines_a"] = [dict(m) for m in SAMPLE_MACHINES_WP]
     if "plant_name_a" not in st.session_state:
         st.session_state["plant_name_a"] = "Musterbetrieb Metallverarbeitung"
     if "industry_a" not in st.session_state:
@@ -46,27 +46,19 @@ def _machine_editor() -> list[dict]:
     st.caption("Fügen Sie alle elektrischen Verbraucher mit ihren Typenschilddaten hinzu.")
 
     # Add / remove buttons
-    col_add, col_remove, _ = st.columns([1, 1, 3])
-    with col_add:
-        if st.button("➕ Maschine hinzufügen", key="add_machine_a", width="stretch"):
-            machines.append({
-                "name": f"Neue Maschine {len(machines) + 1}",
-                "rated_power_kw": 10.0,
-                "operating_hours_per_day": 8.0,
-                "days_per_week": 5,
-                "simultaneity_factor": 0.8,
-                "load_factor": 0.7,
-                "start_hour": 6.0,
-                "category": "production",
-            })
-            st.session_state["machines_a"] = machines
-            st.rerun()
-    with col_remove:
-        if len(machines) > 1:
-            if st.button("➖ Letzte entfernen", key="remove_machine_a", width="stretch"):
-                machines.pop()
-                st.session_state["machines_a"] = machines
-                st.rerun()
+    if st.button("➕ Maschine hinzufügen", key="add_machine_a", width="stretch"):
+        machines.append({
+            "name": f"Neue Maschine {len(machines) + 1}",
+            "rated_power_kw": 10.0,
+            "operating_hours_per_day": 8.0,
+            "days_per_week": 5,
+            "simultaneity_factor": 1.0,
+            "load_factor": 1.0,
+            "start_hour": 6.0,
+            "category": "production",
+        })
+        st.session_state["machines_a"] = machines
+        st.rerun()
 
     updated: list[dict] = []
     categories = {"production": "Produktion", "auxiliary": "Hilfsbetrieb", "building_services": "Gebäudetechnik"}
@@ -75,6 +67,20 @@ def _machine_editor() -> list[dict]:
 
     for i, m in enumerate(machines):
         with st.expander(f"🔧 {m.get('name', f'Maschine {i+1}')}", expanded=(i < 2)):
+            btn1, btn2, _ = st.columns([1, 1, 4])
+            with btn1:
+                if st.button("🗑️ Löschen", key=f"del_a_{i}", use_container_width=True):
+                    machines.pop(i)
+                    st.session_state["machines_a"] = machines
+                    st.rerun()
+            with btn2:
+                if st.button("📋 Kopieren", key=f"copy_a_{i}", use_container_width=True):
+                    copy = dict(m)
+                    copy["name"] = f"Kopie: {m.get('name', f'Maschine {i+1}')}"
+                    machines.insert(i + 1, copy)
+                    st.session_state["machines_a"] = machines
+                    st.rerun()
+
             c1, c2 = st.columns(2)
             with c1:
                 name = st.text_input("Name", value=m.get("name", ""), key=f"name_{i}")
@@ -82,11 +88,18 @@ def _machine_editor() -> list[dict]:
                 hours = st.number_input("Betriebsstunden / Tag", value=m.get("operating_hours_per_day", 8.0), min_value=0.25, max_value=24.0, step=0.5, key=f"hours_{i}")
                 days = st.number_input("Betriebstage / Woche", value=m.get("days_per_week", 5), min_value=1, max_value=7, step=1, key=f"days_{i}")
             with c2:
-                sim = st.slider("Gleichzeitigkeitsfaktor", 0.0, 1.0, m.get("simultaneity_factor", 0.8), 0.05, key=f"sim_{i}")
-                lf = st.slider("Lastfaktor", 0.0, 1.0, m.get("load_factor", 0.7), 0.05, key=f"lf_{i}")
                 start = st.number_input("Startzeit (Uhr)", value=m.get("start_hour", 6.0), min_value=0.0, max_value=23.75, step=0.25, key=f"start_{i}")
                 cat_idx = cat_keys.index(m.get("category", "production")) if m.get("category") in cat_keys else 0
                 cat = st.selectbox("Kategorie", cat_labels, index=cat_idx, key=f"cat_{i}")
+
+            with st.expander("Erweiterte Einstellungen"):
+                ec1, ec2 = st.columns(2)
+                with ec1:
+                    sim = st.slider("Gleichzeitigkeitsfaktor", 0.0, 1.0, m.get("simultaneity_factor", 1.0), 0.05, key=f"sim_{i}",
+                                    help="Anteil der Zeit, in der die Maschine während ihres Betriebsfensters tatsächlich läuft.")
+                with ec2:
+                    lf = st.slider("Lastfaktor", 0.0, 1.0, m.get("load_factor", 1.0), 0.05, key=f"lf_{i}",
+                                   help="Durchschnittlicher Anteil der Nennleistung, der im Betrieb abgerufen wird.")
 
             eff = rated * sim * lf
             st.caption(f"Effektive Leistung: **{eff:.1f} kW** | Geschätzter Jahresverbrauch: **{eff * hours * days * 52:,.0f} kWh**")
@@ -119,7 +132,7 @@ def render_scenario_a() -> None:
         ## 📋 Szenario A — Synthetisches Lastprofil (Neukunde)
         Erstellen Sie ein synthetisches Lastprofil auf Basis der Typenschilddaten
         Ihrer Verbraucher. Das Tool berechnet den geschätzten Jahresverbrauch
-        und empfiehlt den passenden Tarif.
+        und stellt die Kennzahlen für die Tarifberatung bereit.
         """
     )
 
@@ -191,9 +204,6 @@ def render_scenario_a() -> None:
             render_weekly_profile_chart(res["total"], res["per_machine"])
         with tab2:
             render_annual_heatmap(res["total"])
-
-        st.markdown("---")
-        render_tariff_recommendation(res["rec"])
 
         # --- Export ---
         st.markdown("---")
