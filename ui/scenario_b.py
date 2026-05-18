@@ -20,7 +20,6 @@ from ui.components import (
     render_comparison_chart,
     render_deviation_chart,
     render_summary_cards,
-    render_tariff_recommendation,
 )
 from utils.export import export_scenario_b_excel
 
@@ -267,9 +266,6 @@ def render_scenario_b() -> None:
                 render_comparison_chart(res["synth"], res["real"])
         with tab2:
             render_deviation_chart(res["dev"])
-
-        st.markdown("---")
-        render_tariff_recommendation(res["rec"])
 
         # Export
         st.markdown("---")
